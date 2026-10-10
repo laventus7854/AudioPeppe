@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Полностью локальная диагностика аудиоустройств в браузере. Без серверов, без регистрации." />
+<title>Audio Diagnostics — проверка звука в браузере</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>" />
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="logo">🎧</span>
+    <h1>Audio&nbsp;Diagnostics</h1>
+    <span class="badge">100% локально</span>
+  </div>
+  <div class="header-actions">
+    <button id="btn-theme" class="icon-btn" title="Переключить тему">🌗</button>
+    <button id="btn-emergency-stop" class="danger-btn" title="Экстренно остановить звук">⏹ СТОП</button>
+  </div>
+</header>
+
+<div class="warning-banner" id="volume-warning">
+  ⚠️ Перед началом убавьте громкость системы/наушников. Тесты содержат сигналы высокой амплитуды.
+</div>
+
+<div id="unsupported" class="error-card hidden">
+  <h2>Ваш браузер не поддерживает Web Audio API</h2>
+  <p>Пожалуйста, используйте актуальные версии Chrome, Edge, Firefox или Safari.</p>
+</div>
+
+<div class="app-layout">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <section class="device-section">
+      <h3>Устройства</h3>
+      <label class="field">
+        <span>Вывод (динамики/наушники)</span>
+        <select id="select-output"></select>
+      </label>
+      <label class="field">
+        <span>Ввод (микрофон)</span>
+        <select id="select-input"></select>
+      </label>
+      <button id="btn-refresh-devices" class="ghost-btn small">🔄 Обновить список</button>
+      <button id="btn-request-mic" class="ghost-btn small">🎤 Разрешить микрофон</button>
+      <p id="mic-status" class="muted small">Микрофон: не разрешён</p>
+    </section>
+
+    <nav class="nav">
+      <h3>Разделы</h3>
+      <ul>
+        <li><a href="#dashboard"     data-section="dashboard">🏠 Обзор</a></li>
+        <li><a href="#channels"      data-section="channels">🔊 Каналы и стерео</a></li>
+        <li><a href="#frequency"     data-section="frequency">📈 Частоты</a></li>
+        <li><a href="#phase"         data-section="phase">⏮ Фаза и полярность</a></li>
+        <li><a href="#headphones"    data-section="headphones">🎧 Наушники</a></li>
+        <li><a href="#speakers"      data-section="speakers">🔉 Динамики / 5.1</a></li>
+        <li><a href="#microphone"    data-section="microphone">🎙 Микрофон</a></li>
+        <li><a href="#measure"       data-section="measure">📊 Измерения</a></li>
+        <li><a href="#tools"         data-section="tools">🧰 Инструменты</a></li>
+        <li><a href="#reports"       data-section="reports">📄 Отчёты</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main" id="main">
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="panel active">
+      <h2>Обзор</h2>
+      <p class="muted">Этот набор тестов поможет быстро и без установки проверить аудиоустройства. Все вычисления выполняются в браузере, никакие данные не уходят в сеть.</p>
+      <div class="grid cards">
+        <div class="card"><h3>Статус контекста</h3><p id="ctx-status">не запущен</p></div>
+        <div class="card"><h3>Sample Rate</h3><p id="ctx-rate">—</p></div>
+        <div class="card"><h3>Базовая задержка</h3><p id="ctx-latency">—</p></div>
+        <div class="card"><h3>Bluetooth</h3><p id="ctx-bt">—</p></div>
+      </div>
+      <button id="btn-start-audio" class="primary-btn big">▶ Запустить аудио-движок</button>
+      <p class="muted small">Запуск требуется по требованию браузеров (защита от авто-воспроизведения).</p>
+
+      <h3>Быстрый прогон</h3>
+      <div class="grid">
+        <button class="tile" data-jump="channels">Лево / Право</button>
+        <button class="tile" data-jump="frequency">Свип 20 Гц – 20 кГц</button>
+        <button class="tile" data-jump="phase">Фаза L/R</button>
+        <button class="tile" data-jump="microphone">VU-метр микрофона</button>
+        <button class="tile" data-jump="measure">Спектроанализатор</button>
+        <button class="tile" data-jump="reports">Итоговый отчёт</button>
+      </div>
+    </section>
+
+    <!-- CHANNELS -->
+    <section id="channels" class="panel">
+      <h2>Каналы и стерео</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>Тест левого / правого канала</h3>
+          <p class="muted small">Тон 440 Гц поочерёдно подаётся только в L, затем только в R.</p>
+          <button class="primary-btn" data-test="ch-left">▶ Только левый</button>
+          <button class="primary-btn" data-test="ch-right">▶ Только правый</button>
+          <button class="primary-btn" data-test="ch-both">▶ Оба канала</button>
+          <div class="result" id="res-channels"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Баланс громкости</h3>
+          <p class="muted small">Поочерёдное воспроизведение равной громкости L→R→L. Помогает выявить дисбаланс на слух.</p>
+          <button class="primary-btn" data-test="balance-cycle">▶ Запустить цикл</button>
+          <div class="result" id="res-balance"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Стерео-панорамирование</h3>
+          <p class="muted small">Плавный переход L → R за 4 секунды (StereoPannerNode).</p>
+          <button class="primary-btn" data-test="pan-sweep">▶ Pan Sweep</button>
+          <div class="result" id="res-pan"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Перекрёстные помехи (Crosstalk)</h3>
+          <p class="muted small">Подача в L, измерение в R (через микрофон). Поместите микрофон вплотную к правому драйверу.</p>
+          <label class="field"><span>Длительность (с)</span><input type="number" id="crosstalk-dur" value="3" min="1" max="15"></label>
+          <button class="primary-btn" data-test="crosstalk">▶ Измерить</button>
+          <div class="result" id="res-crosstalk"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Пинг-понг L/R</h3>
+          <p class="muted small">Автоматическое переключение каналов с заданным интервалом.</p>
+          <label class="field"><span>Интервал (мс)</span><input type="number" id="pingpong-ms" value="500" min="100" max="3000" step="50"></label>
+          <button class="primary-btn" data-test="pingpong-start">▶ Старт</button>
+          <button class="ghost-btn" data-test="pingpong-stop">⏹ Стоп</button>
+        </div>
+
+        <div class="test-card">
+          <h3>Проверка Bluetooth-задержки</h3>
+          <p class="muted small">Воспроизводится импульс; микрофон фиксирует отклик. Разница = round-trip latency BT.</p>
+          <button class="primary-btn" data-test="bt-latency">▶ Измерить</button>
+          <div class="result" id="res-bt-latency"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FREQUENCY -->
+    <section id="frequency" class="panel">
+      <h2>Частотные тесты</h2>
+
+      <div class="test-card">
+        <h3>Генератор тона</h3>
+        <div class="grid two">
+          <label class="field">
+            <span>Частота: <b id="gen-freq-val">440</b> Гц</span>
+            <input type="range" id="gen-freq" min="20" max="20000" value="440" step="1">
+            <input type="number" id="gen-freq-num" min="20" max="20000" value="440">
+          </label>
+          <label class="field">
+            <span>Громкость: <b id="gen-vol-val">-20</b> дБFS</span>
+            <input type="range" id="gen-vol" min="-60" max="-3" value="-20" step="1">
+          </label>
+          <label class="field">
+            <span>Тип волны</span>
+            <select id="gen-wave">
+              <option value="sine">Синус</option>
+              <option value="square">Квадрат</option>
+              <option value="sawtooth">Пила</option>
+              <option value="triangle">Треугольник</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Канал</span>
+            <select id="gen-channel">
+              <option value="both">Оба</option>
+              <option value="left">Только L</option>
+              <option value="right">Только R</option>
+            </select>
+          </label>
+        </div>
+        <button class="primary-btn" data-test="gen-start">▶ Включить</button>
+        <button class="ghost-btn" data-test="gen-stop">⏹ Выключить</button>
+      </div>
+
+      <div class="grid two">
+        <div class="test-card">
+          <h3>Полный частотный свип</h3>
+          <p class="muted small">Логарифмическая развёртка 20 Гц → 20 кГц за 15 секунд.</p>
+          <button class="primary-btn" data-test="sweep-full">▶ Запустить</button>
+          <div class="progress"><div class="progress-fill" id="sweep-full-bar"></div></div>
+          <p class="muted small">Текущая частота: <b id="sweep-full-freq">—</b></p>
+        </div>
+
+        <div class="test-card">
+          <h3>Свип низов (200 → 20 Гц)</h3>
+          <p class="muted small">Для определения нижней границы воспроизведения сабвуфера/наушников.</p>
+          <button class="primary-btn" data-test="sweep-bass">▶ Запустить</button>
+          <p class="muted small">Текущая частота: <b id="sweep-bass-freq">—</b></p>
+        </div>
+
+        <div class="test-card">
+          <h3>Высокие частоты</h3>
+          <p class="muted small">Отдельные тона: 8, 10, 12, 15, 16, 18, 20 кГц.</p>
+          <div class="chips">
+            <button class="chip" data-hf="8000">8 кГц</button>
+            <button class="chip" data-hf="10000">10 кГц</button>
+            <button class="chip" data-hf="12000">12 кГц</button>
+            <button class="chip" data-hf="15000">15 кГц</button>
+            <button class="chip" data-hf="16000">16 кГц</button>
+            <button class="chip" data-hf="18000">18 кГц</button>
+            <button class="chip" data-hf="20000">20 кГц</button>
+          </div>
+        </div>
+
+        <div class="test-card">
+          <h3>Поиск «мёртвых зон»</h3>
+          <p class="muted small">Медленный свип с анализом микрофоном — провалы АЧХ подсвечиваются на спектре.</p>
+          <button class="primary-btn" data-test="dead-zones">▶ Анализ</button>
+          <div class="result" id="res-dead-zones"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Поиск резонансов</h3>
+          <p class="muted small">Определение частот, на которых уровень резко повышен.</p>
+          <button class="primary-btn" data-test="resonances">▶ Анализ</button>
+          <div class="result" id="res-resonances"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE -->
+    <section id="phase" class="panel">
+      <h2>Фаза и полярность</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>In-Phase / Out-of-Phase</h3>
+          <p class="muted small">Сигнал в фазе — плотный центр. Противофаза — «пустой» центр.</p>
+          <button class="primary-btn" data-test="phase-in">▶ В фазе</button>
+          <button class="primary-btn" data-test="phase-out">▶ Противофаза</button>
+          <div class="result" id="res-phase"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Полярность динамиков</h3>
+          <p class="muted small">Инверсия полярности правого канала. Если бас пропадает — полярность перепутана.</p>
+          <button class="primary-btn" data-test="polarity-normal">▶ Норма</button>
+          <button class="primary-btn" data-test="polarity-invert">▶ Инверсия R</button>
+        </div>
+
+        <div class="test-card">
+          <h3>Фазировка наушников</h3>
+          <p class="muted small">Кастомизированный трек: короткий импульс поочерёдно в L/R + проверка локализации.</p>
+          <button class="primary-btn" data-test="hp-phase">▶ Воспроизвести</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- HEADPHONES -->
+    <section id="headphones" class="panel">
+      <h2>Тесты для наушников</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>АЧХ по микрофону (loopback)</h3>
+          <p class="muted small">Микрофон вплотную к драйверу. Производится свип 50 Гц → 15 кГц и строится относительная АЧХ.</p>
+          <button class="primary-btn" data-test="hp-fr">▶ Измерить АЧХ</button>
+          <canvas id="canvas-fr" width="600" height="240"></canvas>
+        </div>
+
+        <div class="test-card">
+          <h3>THD (Total Harmonic Distortion)</h3>
+          <p class="muted small">Подача синуса 1 кГц, измерение уровня гармоник через микрофон.</p>
+          <button class="primary-btn" data-test="hp-thd">▶ Измерить THD</button>
+          <div class="result" id="res-thd"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Тест на «пробитый» динамик</h3>
+          <p class="muted small">Усиленный свип для поиска треска и хрипов (жёсткий, но не в 0 dB).</p>
+          <button class="primary-btn" data-test="hp-crack">▶ Проверить</button>
+        </div>
+
+        <div class="test-card">
+          <h3>Комфорт громкости</h3>
+          <p class="muted small">Плавное увеличение на 1 дБ. Отметьте порог комфорта и порог боли.</p>
+          <button class="primary-btn" data-test="hp-loud">▶ Старт</button>
+          <button class="ghost-btn" data-test="hp-loud-mark-comfort">✔ Комфорт</button>
+          <button class="ghost-btn" data-test="hp-loud-mark-pain">⚠ Боль</button>
+          <div class="result" id="res-loud"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Собственный шум наушников</h3>
+          <p class="muted small">Микрофон вплотную. Тишина в течение 5 сек — измерение noise floor.</p>
+          <button class="primary-btn" data-test="hp-noise">▶ Измерить</button>
+          <div class="result" id="res-hp-noise"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SPEAKERS -->
+    <section id="speakers" class="panel">
+      <h2>Динамики и акустика</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>Тест каналов 5.1 / 7.1</h3>
+          <p class="muted small">Требуется соответствующее устройство вывода. Если доступно только стерео — кнопки воспроизведут микс.</p>
+          <div class="chips">
+            <button class="chip" data-surround="FL">Front L</button>
+            <button class="chip" data-surround="C">Center</button>
+            <button class="chip" data-surround="FR">Front R</button>
+            <button class="chip" data-surround="SL">Surround L</button>
+            <button class="chip" data-surround="SR">Surround R</button>
+            <button class="chip" data-surround="LFE">Subwoofer</button>
+          </div>
+        </div>
+
+        <div class="test-card">
+          <h3>Тест сабвуфера</h3>
+          <p class="muted small">Свип 100 Гц → 20 Гц.</p>
+          <button class="primary-btn" data-test="sweep-sub">▶ Запустить</button>
+          <p class="muted small">Текущая частота: <b id="sweep-sub-freq">—</b></p>
+        </div>
+
+        <div class="test-card">
+          <h3>Проверка кроссовера</h3>
+          <p class="muted small">Поочерёдная подача частот 60, 100, 150, 200, 300 Гц — оценка стыковки сателлит/саб.</p>
+          <div class="chips">
+            <button class="chip" data-xover="60">60 Гц</button>
+            <button class="chip" data-xover="100">100 Гц</button>
+            <button class="chip" data-xover="150">150 Гц</button>
+            <button class="chip" data-xover="200">200 Гц</button>
+            <button class="chip" data-xover="300">300 Гц</button>
+          </div>
+        </div>
+
+        <div class="test-card">
+          <h3>Тест «сцены»</h3>
+          <p class="muted small">Последовательное перемещение источника по кругу (8 позиций).</p>
+          <button class="primary-btn" data-test="scene">▶ Воспроизвести</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MICROPHONE -->
+    <section id="microphone" class="panel">
+      <h2>Микрофон</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>Уровень входа (VU + клип)</h3>
+          <p class="muted small">Реальный уровень сигнала, пиковые значения и индикатор клиппинга.</p>
+          <button class="primary-btn" data-test="mic-vu-start">▶ Старт</button>
+          <button class="ghost-btn" data-test="mic-vu-stop">⏹ Стоп</button>
+          <div class="vu-row">
+            <div class="vu-bar"><div class="vu-fill" id="vu-fill"></div></div>
+            <span id="vu-db">— дБ</span>
+            <span id="vu-clip" class="clip hidden">CLIP</span>
+          </div>
+        </div>
+
+        <div class="test-card">
+          <h3>Запись и воспроизведение</h3>
+          <button class="primary-btn" data-test="mic-rec">● Запись (3 с)</button>
+          <button class="ghost-btn" data-test="mic-play">▶ Проиграть</button>
+          <button class="ghost-btn" data-test="mic-download">⬇ Скачать WAV</button>
+          <div class="result" id="res-rec"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Echo / Noise Suppression</h3>
+          <label><input type="checkbox" id="chk-echo" checked> Echo Cancellation</label><br>
+          <label><input type="checkbox" id="chk-noise" checked> Noise Suppression</label><br>
+          <label><input type="checkbox" id="chk-agc" checked> Auto Gain Control</label>
+          <br>
+          <button class="primary-btn" data-test="mic-restart-constraints">↻ Перезапустить поток с этими опциями</button>
+          <div class="result" id="res-suppression"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Round-trip latency</h3>
+          <p class="muted small">Один импульс → запись → кросс-корреляция. Показывает полную задержку.</p>
+          <button class="primary-btn" data-test="mic-rtt">▶ Измерить</button>
+          <div class="result" id="res-rtt"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Тест на «эхо»</h3>
+          <p class="muted small">Импульс + отражения. Полезно для оценки помещения.</p>
+          <button class="primary-btn" data-test="mic-echo">▶ Воспроизвести импульс и записать</button>
+          <div class="result" id="res-echo"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEASURE -->
+    <section id="measure" class="panel">
+      <h2>Измерения и анализ</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>Спектроанализатор (FFT)</h3>
+          <button class="primary-btn" data-test="spectrum-start">▶ Старт</button>
+          <button class="ghost-btn" data-test="spectrum-stop">⏹ Стоп</button>
+          <canvas id="canvas-fft" width="700" height="260"></canvas>
+        </div>
+
+        <div class="test-card">
+          <h3>Уровнеметр (дБ SPL, относительный)</h3>
+          <p class="muted small">Калибровка: примите текущий уровень за 0 дБ и ориентируйтесь относительно него.</p>
+          <button class="primary-btn" data-test="spl-start">▶ Старт</button>
+          <button class="ghost-btn" data-test="spl-cal">🎯 Калибровать 0 дБ</button>
+          <div class="result" id="res-spl"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Noise floor</h3>
+          <p class="muted small">Измерение собственного шума при отсутствии сигнала.</p>
+          <button class="primary-btn" data-test="nfloor">▶ Измерить (3 с)</button>
+          <div class="result" id="res-nfloor"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Тест «возраста слуха»</h3>
+          <p class="muted small">Отметьте максимальную частоту, которую вы слышите.</p>
+          <div class="chips">
+            <button class="chip" data-hearing="8000">8 кГц</button>
+            <button class="chip" data-hearing="10000">10 кГц</button>
+            <button class="chip" data-hearing="12000">12 кГц</button>
+            <button class="chip" data-hearing="14000">14 кГц</button>
+            <button class="chip" data-hearing="16000">16 кГц</button>
+            <button class="chip" data-hearing="18000">18 кГц</button>
+            <button class="chip" data-hearing="20000">20 кГц</button>
+          </div>
+          <div class="result" id="res-hearing"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Динамический диапазон</h3>
+          <p class="muted small">Подача -60 дБ, затем -6 дБ — сравнение уровня по микрофону.</p>
+          <button class="primary-btn" data-test="dyn-range">▶ Измерить</button>
+          <div class="result" id="res-dyn"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>Wow & Flutter</h3>
+          <p class="muted small">Подача опорного тона 3150 Гц и анализ паразитной девиации частоты.</p>
+          <button class="primary-btn" data-test="wow-flutter">▶ Анализ (10 с)</button>
+          <div class="result" id="res-wow"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TOOLS -->
+    <section id="tools" class="panel">
+      <h2>Дополнительные инструменты</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>DTMF-генератор</h3>
+          <div class="dtmf-pad">
+            <button class="chip" data-dtmf="1">1</button>
+            <button class="chip" data-dtmf="2">2</button>
+            <button class="chip" data-dtmf="3">3</button>
+            <button class="chip" data-dtmf="4">4</button>
+            <button class="chip" data-dtmf="5">5</button>
+            <button class="chip" data-dtmf="6">6</button>
+            <button class="chip" data-dtmf="7">7</button>
+            <button class="chip" data-dtmf="8">8</button>
+            <button class="chip" data-dtmf="9">9</button>
+            <button class="chip" data-dtmf="*">*</button>
+            <button class="chip" data-dtmf="0">0</button>
+            <button class="chip" data-dtmf="#">#</button>
+          </div>
+        </div>
+
+        <div class="test-card">
+          <h3>Генератор шума</h3>
+          <select id="noise-type">
+            <option value="white">Белый</option>
+            <option value="pink">Розовый</option>
+            <option value="brown">Коричневый</option>
+          </select>
+          <button class="primary-btn" data-test="noise-start">▶ Включить</button>
+          <button class="ghost-btn" data-test="noise-stop">⏹ Выключить</button>
+        </div>
+
+        <div class="test-card">
+          <h3>Калибровка опорного уровня</h3>
+          <p class="muted small">Все последующие измерения будут относиться к текущему уровню.</p>
+          <button class="primary-btn" data-test="cal-start">▶ Зафиксировать 0 дБ</button>
+          <div class="result" id="res-cal"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section id="reports" class="panel">
+      <h2>Отчёты</h2>
+      <div class="grid two">
+        <div class="test-card">
+          <h3>Текущий отчёт</h3>
+          <button class="primary-btn" data-test="report-build">🧾 Собрать отчёт</button>
+          <button class="ghost-btn" data-test="report-download">⬇ Скачать (JSON)</button>
+          <button class="ghost-btn" data-test="report-share">🔗 Поделиться</button>
+          <div class="result big" id="res-report"></div>
+        </div>
+
+        <div class="test-card">
+          <h3>История</h3>
+          <button class="ghost-btn" data-test="hist-clear">🗑 Очистить историю</button>
+          <div id="history-list"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="app-footer">
+  <p>Audio Diagnostics — работает полностью в браузере. Микрофон используется только для измерения в реальном времени, ничего не передаётся в сеть.</p>
+</footer>
+
+<!-- Scripts -->
+<script src="audio-engine.js"></script>
+<script src="tests.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
